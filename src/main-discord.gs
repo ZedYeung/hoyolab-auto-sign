@@ -145,6 +145,15 @@ async function postWebhook(data, retries = 5) {
   }
 }
 
+function sleepRandomly() {
+    // Generate a random number of milliseconds between 0 and 600000 (10 minutes)
+    const milliseconds = Math.random() * 600000;
+
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+await sleepRandomly();
+
 main().catch(error => {
   console.error(error);
   process.exit(1);
