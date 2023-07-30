@@ -145,4 +145,8 @@ async function postWebhook(data, retries = 5) {
   }
 }
 
-main().catch(console.error);
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+
