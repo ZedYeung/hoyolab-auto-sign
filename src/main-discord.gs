@@ -1,4 +1,5 @@
 const fs = require('fs');
+const https = require('https');
 
 console.log('Reading /etc/secrets and /etc/config');
 
@@ -26,7 +27,6 @@ const urlDict = {
 }
 
 async function main() {
-
   const messages = await Promise.all(profiles.map(autoSignFunction));
   const hoyolabResp = `${messages.join('\n\n')}`
   
@@ -35,7 +35,6 @@ async function main() {
       postWebhook(hoyolabResp);
     }
   }
-
 }
 
 function discordPing() {
@@ -46,36 +45,58 @@ function discordPing() {
   }
 }
 
-function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, accountName }) {
+function httpRequest(url, options, payload) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, options, res => {
+      let data = '';
 
+      res.on('data', chunk => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        resolve(data);
+      });
+    });
+
+    req.on('error', error => {
+      reject(error);
+    });
+
+    if (payload) {
+      req.write(payload);
+    }
+
+    req.end();
+  });
+}
+
+async function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, accountName }) {
   const urls = [];
 
   if (genshin) urls.push(urlDict.Genshin);
   if (honkai_star_rail) urls.push(urlDict.Star_Rail);
   if (honkai_3) urls.push(urlDict.Honkai_3);
 
-  const header = {
-    Cookie: token,
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Connection': 'keep-alive',
-    'x-rpc-app_version': '2.34.1',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-    'x-rpc-client_type': '4',
-    'Referer': 'https://act.hoyolab.com/',
-    'Origin': 'https://act.hoyolab.com'
-  };
-
   const options = {
     method: 'POST',
-    headers: header,
-    muteHttpExceptions: true,
+    headers: {
+      Cookie: token,
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'x-rpc-app_version': '2.34.1',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+      'x-rpc-client_type': '4',
+      'Referer': 'https://act.hoyolab.com/',
+      'Origin': 'https://act.hoyolab.com'
+    }
   };
 
   let response = `Check-in completed for ${accountName}`;
 
   console.log('autosigning')
-  const httpResponses = UrlFetchApp.fetchAll(urls.map(url => ({ url, ...options })));
+  const httpResponses = await Promise.all(urls.map(url => httpRequest(url, options)));
 
   for (const [i, hoyolabResponse] of httpResponses.entries()) {
     const checkInResult = JSON.parse(hoyolabResponse).message;
@@ -93,8 +114,7 @@ function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, accountN
   return response;
 }
 
-function postWebhook(data) {
-
+async function postWebhook(data, retries = 5) {
   let payload = JSON.stringify({
     'username': 'auto-sign',
     'avatar_url': 'https://i.imgur.com/LI1D4hP.png',
@@ -103,12 +123,26 @@ function postWebhook(data) {
 
   const options = {
     method: 'POST',
-    contentType: 'application/json',
-    payload: payload,
-    muteHttpExceptions: true,
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': payload.length
+    }
   };
+  
   console.log('notifying discord')
-  UrlFetchApp.fetch(discordWebhook, options);
+  try {
+    await httpRequest(discordWebhook, options, payload);
+  } catch (error) {
+    console.error(`Failed to send webhook: ${error}`);
+    if (retries > 0) {
+      console.log(`Retrying... (${retries} retries left)`);
+      // Wait for 1 second before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await postWebhook(data, retries - 1);
+    } else {
+      console.error('Failed to send webhook after multiple attempts');
+    }
+  }
 }
 
 main().catch(console.error);
