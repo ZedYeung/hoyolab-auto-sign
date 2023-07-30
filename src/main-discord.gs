@@ -1,5 +1,7 @@
 const fs = require('fs');
 
+console.log('Reading /etc/secrets and /etc/config');
+
 const profiles = [
   { 
     token: fs.readFileSync('/etc/secrets/token', 'utf8').trim(), 
@@ -11,8 +13,8 @@ const profiles = [
 ];
 
 const discord_notify = (fs.readFileSync('/etc/config/discord_notify', 'utf8').trim()) === 'true';
-const myDiscordID = fs.readFileSync('/etc/config/myDiscordID', 'utf8').trim();
-const discordWebhook = fs.readFileSync('/etc/config/discordWebhook', 'utf8').trim();
+const myDiscordID = fs.readFileSync('/etc/secrets/myDiscordID', 'utf8').trim();
+const discordWebhook = fs.readFileSync('/etc/secrets/discordWebhook', 'utf8').trim();
 
 /** The above is the config. Please refer to the instructions on https://github.com/canaria3406/hoyolab-auto-sign for configuration. **/
 /** The following is the script code. Please DO NOT modify. **/
@@ -72,6 +74,7 @@ function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, accountN
 
   let response = `Check-in completed for ${accountName}`;
 
+  console.log('autosigning')
   const httpResponses = UrlFetchApp.fetchAll(urls.map(url => ({ url, ...options })));
 
   for (const [i, hoyolabResponse] of httpResponses.entries()) {
@@ -86,7 +89,7 @@ function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, accountN
       response += `\n${gameName}: ${isError ? discordPing() : ""}${checkInResult}`;
     }
   };
-
+  console.log(response)
   return response;
 }
 
@@ -104,6 +107,8 @@ function postWebhook(data) {
     payload: payload,
     muteHttpExceptions: true,
   };
-
+  console.log('notifying discord')
   UrlFetchApp.fetch(discordWebhook, options);
 }
+
+main().catch(console.error);
