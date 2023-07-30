@@ -1,14 +1,18 @@
+const fs = require('fs');
+
 const profiles = [
-  { token: "ltoken=gBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxCY; ltuid=26XXXXX20;", 
-    genshin: true, 
-    honkai_star_rail: true, 
-    honkai_3: false, 
-    accountName: "YOUR NICKNAME" }
+  { 
+    token: fs.readFileSync('/etc/secrets/token', 'utf8').trim(), 
+    genshin: (fs.readFileSync('/etc/config/genshin', 'utf8').trim()) === 'true', 
+    honkai_star_rail: (fs.readFileSync('/etc/config/honkai_star_rail', 'utf8').trim()) === 'true', 
+    honkai_3: (fs.readFileSync('/etc/config/honkai_3', 'utf8').trim()) === 'true', 
+    accountName: fs.readFileSync('/etc/secrets/accountName', 'utf8').trim()
+  }
 ];
 
-const discord_notify = true
-const myDiscordID = ""
-const discordWebhook = ""
+const discord_notify = (fs.readFileSync('/etc/config/discord_notify', 'utf8').trim()) === 'true';
+const myDiscordID = fs.readFileSync('/etc/config/myDiscordID', 'utf8').trim();
+const discordWebhook = fs.readFileSync('/etc/config/discordWebhook', 'utf8').trim();
 
 /** The above is the config. Please refer to the instructions on https://github.com/canaria3406/hoyolab-auto-sign for configuration. **/
 /** The following is the script code. Please DO NOT modify. **/
