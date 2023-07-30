@@ -1,5 +1,5 @@
 
 tag=$(date "+%Y%m%d-%H%M%S")
 image=yeungzed/hoyolab-auto-sign:$tag
-docker build -t $image .
-docker push $image
+docker buildx build --platform linux/amd64,linux/arm64 -t $image --push .
+# docker push $image
