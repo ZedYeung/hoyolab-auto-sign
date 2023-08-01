@@ -27,6 +27,7 @@ const urlDict = {
 }
 
 async function main() {
+  await sleepRandomly();
   const messages = await Promise.all(profiles.map(autoSignFunction));
   const hoyolabResp = `${messages.join('\n\n')}`
   
@@ -151,8 +152,6 @@ function sleepRandomly() {
 
     return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
-
-await sleepRandomly();
 
 main().catch(error => {
   console.error(error);
