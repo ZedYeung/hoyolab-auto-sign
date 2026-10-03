@@ -1,0 +1,10 @@
+{
+  "name": "hoyolab-auto-sign",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "start": "node src/main-discord.cjs",
+    "test": "node --test"
+  }
+}

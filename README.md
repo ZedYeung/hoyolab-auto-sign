@@ -12,6 +12,23 @@
 A lightweight, secure, and free script that automatically collect Hoyolab daily check in rewards.  
 Supports Genshin Impact, Honkai Impact 3rd, and Honkai: Star Rail. Support multiple accounts.
 
+## Container deployment in this fork
+
+The container entrypoint is `src/main-discord.cjs` and requires Node.js 24 LTS. It uses Node built-ins only; no npm dependencies or install step are needed. The Docker base image is pinned by digest and supports ARM64 and AMD64. The container runs as the unprivileged `node` user.
+
+Mount readable files at `/etc/config/{genshin,honkai_star_rail,honkai_3,discord_notify}` containing `true` or `false`, and secret files at `/etc/secrets/{token,accountName,myDiscordID,discordWebhook}`. Keep secret files outside Git and outside the image. For a local build and offline tests:
+
+```sh
+npm test
+docker build -t hoyolab-auto-sign:local .
+```
+
+The script retains its random delay of up to ten minutes. Requests have a 15-second timeout. Rejected authentication, CAPTCHA, malformed API responses and HTTP/network failures result in exit code 1. Enabled Discord notifications are awaited; notification retries are bounded and exhaustion also fails the process. Tests mock all HTTP calls and never sign in or send notifications.
+
+For Kubernetes, use a CronJob deadline longer than the random delay and request/retry budget, disable overlapping runs, and monitor actual Job failures. An old `Succeeded` Job can have logged `Not logged in`; upgrading the image does not refresh the account credential. Complete the account's normal login flow separately before resuming the schedule.
+
+The following sections describe the upstream Google Apps Script variants; they are separate from this fork's container entrypoint.
+
 ## Features
 * **Lightweight** - The script only requires minimal configuration and is only 90 lines of code.
 * **Secure** - The script can be self-deployed to Google Apps Script, no worries about data leaks.

@@ -1,5 +1,4 @@
 const fs = require('fs');
-const https = require('https');
 
 console.log('Reading /etc/secrets and /etc/config');
 
@@ -17,8 +16,7 @@ const discord_notify = (fs.readFileSync('/etc/config/discord_notify', 'utf8').tr
 const myDiscordID = fs.readFileSync('/etc/secrets/myDiscordID', 'utf8').trim();
 const discordWebhook = fs.readFileSync('/etc/secrets/discordWebhook', 'utf8').trim();
 
-/** The above is the config. Please refer to the instructions on https://github.com/canaria3406/hoyolab-auto-sign for configuration. **/
-/** The following is the script code. Please DO NOT modify. **/
+// Container configuration is mounted under /etc/config and /etc/secrets.
 
 const urlDict = {
   Genshin: 'https://sg-hk4e-api.hoyolab.com/event/sol/sign?lang=en-us&act_id=e202102251931481',
@@ -28,13 +26,16 @@ const urlDict = {
 
 async function main() {
   await sleepRandomly();
-  const messages = await Promise.all(profiles.map(autoSignFunction));
-  const hoyolabResp = `${messages.join('\n\n')}`
+  const results = await Promise.all(profiles.map(autoSignFunction));
+  const hoyolabResp = results.map(result => result.message).join('\n\n');
   
   if(discord_notify == true){
     if(discordWebhook) {
-      postWebhook(hoyolabResp);
+      await postWebhook(hoyolabResp);
     }
+  }
+  if (results.some(result => result.failed)) {
+    throw new Error('One or more check-ins were rejected; see the results above.');
   }
 }
 
@@ -46,30 +47,25 @@ function discordPing() {
   }
 }
 
-function httpRequest(url, options, payload) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(url, options, res => {
-      let data = '';
-
-      res.on('data', chunk => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        resolve(data);
-      });
+async function httpRequest(url, options, payload) {
+  let response;
+  let body;
+  try {
+    response = await fetch(url, {
+      ...options,
+      body: payload,
+      signal: AbortSignal.timeout(15000)
     });
-
-    req.on('error', error => {
-      reject(error);
-    });
-
-    if (payload) {
-      req.write(payload);
-    }
-
-    req.end();
-  });
+    body = await response.text();
+  } catch (error) {
+    // Do not log fetch errors that may embed the secret webhook URL.
+    throw new Error(['TimeoutError', 'AbortError'].includes(error.name)
+      ? 'Request timed out' : 'Network request failed');
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return body;
 }
 
 async function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, accountName }) {
@@ -84,7 +80,6 @@ async function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, ac
     headers: {
       Cookie: token,
       'Accept': 'application/json, text/plain, */*',
-      'Accept-Encoding': 'gzip, deflate, br',
       'Connection': 'keep-alive',
       'x-rpc-app_version': '2.34.1',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
@@ -94,16 +89,27 @@ async function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, ac
     }
   };
 
-  let response = `Check-in completed for ${accountName}`;
+  let response = `Check-in results for ${accountName}`;
+  let failed = false;
 
   console.log('autosigning')
   const httpResponses = await Promise.all(urls.map(url => httpRequest(url, options)));
 
   for (const [i, hoyolabResponse] of httpResponses.entries()) {
-    const checkInResult = JSON.parse(hoyolabResponse).message;
+    let result;
+    try {
+      result = JSON.parse(hoyolabResponse);
+    } catch {
+      throw new Error('Invalid check-in response');
+    }
+    if (!result || typeof result.retcode !== 'number' || typeof result.message !== 'string') {
+      throw new Error('Invalid check-in response');
+    }
+    const checkInResult = result.message;
     const gameName = Object.keys(urlDict).find(key => urlDict[key] === urls[i])?.replace(/_/g, ' ');
-    const isError = checkInResult != "OK";
-    const bannedCheck = JSON.parse(hoyolabResponse).data?.gt_result?.is_risk;
+    const isError = result.retcode !== 0;
+    const bannedCheck = result.data?.gt_result?.is_risk;
+    failed ||= isError || Boolean(bannedCheck);
     if(bannedCheck){
       response += `\n${gameName}: ${discordPing()} Auto check-in failed due to CAPTCHA blocking.`;
     }
@@ -112,7 +118,7 @@ async function autoSignFunction({ token, genshin, honkai_star_rail, honkai_3, ac
     }
   };
   console.log(response)
-  return response;
+  return { message: response, failed };
 }
 
 async function postWebhook(data, retries = 5) {
@@ -125,8 +131,7 @@ async function postWebhook(data, retries = 5) {
   const options = {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': payload.length
+      'Content-Type': 'application/json'
     }
   };
   
@@ -141,7 +146,7 @@ async function postWebhook(data, retries = 5) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       await postWebhook(data, retries - 1);
     } else {
-      console.error('Failed to send webhook after multiple attempts');
+      throw new Error('Failed to send webhook after multiple attempts');
     }
   }
 }
@@ -154,7 +159,6 @@ function sleepRandomly() {
 }
 
 main().catch(error => {
-  console.error(error);
+  console.error(`Auto check-in failed: ${error.message}`);
   process.exit(1);
 });
-
