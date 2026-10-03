@@ -25,6 +25,8 @@ docker build -t hoyolab-auto-sign:local .
 
 The script retains its random delay of up to ten minutes. Requests have a 15-second timeout. Rejected authentication, CAPTCHA, malformed API responses and HTTP/network failures result in exit code 1. Enabled Discord notifications are awaited; notification retries are bounded and exhaustion also fails the process. Tests mock all HTTP calls and never sign in or send notifications.
 
+CI also exports an ARM64 OCI image archive and SHA-256 checksum as the `hoyolab-auto-sign-arm64` artifact. Its local image name contains the source commit. Copy the verified artifact to durable deployment storage before its seven-day CI retention expires; it can be imported into containerd without installing Docker Engine or configuring registry credentials on the Pi nodes. Preload it on every eligible node and use `imagePullPolicy: Never` when deploying that local image.
+
 For Kubernetes, use a CronJob deadline longer than the random delay and request/retry budget, disable overlapping runs, and monitor actual Job failures. An old `Succeeded` Job can have logged `Not logged in`; upgrading the image does not refresh the account credential. Complete the account's normal login flow separately before resuming the schedule.
 
 The following sections describe the upstream Google Apps Script variants; they are separate from this fork's container entrypoint.
