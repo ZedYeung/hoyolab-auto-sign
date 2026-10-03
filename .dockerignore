@@ -1,0 +1,7 @@
+.git
+.github
+test
+secrets
+config
+.env*
+node_modules

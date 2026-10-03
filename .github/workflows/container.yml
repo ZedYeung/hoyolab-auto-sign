@@ -1,0 +1,41 @@
+name: Container checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - run: npm test
+      - run: docker build -t hoyolab-auto-sign:test .
+      - run: docker run --rm --network none --entrypoint node hoyolab-auto-sign:test --version
+      - run: docker buildx create --use --driver docker-container
+      - name: Export ARM64 image for the Pi cluster
+        env:
+          SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          docker buildx build --platform linux/arm64
+          --tag "localhost/hoyolab-auto-sign:${SOURCE_REVISION}"
+          --label "org.opencontainers.image.revision=${SOURCE_REVISION}"
+          --output type=oci,dest=hoyolab-auto-sign-arm64.tar .
+      - run: sha256sum hoyolab-auto-sign-arm64.tar > hoyolab-auto-sign-arm64.tar.sha256
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hoyolab-auto-sign-arm64
+          path: |
+            hoyolab-auto-sign-arm64.tar
+            hoyolab-auto-sign-arm64.tar.sha256
+          compression-level: 0
+          retention-days: 7
