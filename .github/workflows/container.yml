@@ -22,7 +22,7 @@ jobs:
       - run: docker build -t hoyolab-auto-sign:test .
       - run: docker run --rm --network none --entrypoint node hoyolab-auto-sign:test --version
       - run: docker buildx create --use --driver docker-container
-      - name: Export ARM64 image for the Pi cluster
+      - name: Export ARM64 OCI image
         env:
           SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: >-
